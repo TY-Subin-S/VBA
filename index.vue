@@ -243,7 +243,7 @@ export default class FDTextBox extends Mixins(FdControlVue) {
         if (controlProp.WordWrap) {
           return 'break-spaces'
         } else {
-          return 'nowrap'
+          return 'pre'
         }
       } else {
         return 'pre'
@@ -618,10 +618,11 @@ export default class FDTextBox extends Mixins(FdControlVue) {
   textareaScrollLeft:number
   getscrollTop (textareaRef: HTMLTextAreaElement) {
     this.textareaScrollTop = textareaRef.scrollTop
+    console.log(this.textareaScrollTop)
     this.textareaScrollLeft = textareaRef.scrollLeft
     if (this.textareaScrollLeft === 10 && this.properties.SelectionMargin) {
-      textareaRef.scrollLeft = 0.5
-      this.textareaScrollLeft = 0.5
+      textareaRef.scrollLeft = 0.1
+      this.textareaScrollLeft = 0.1
     }
     console.log('this.textareascrollleft', this.textareaScrollLeft)
   }
