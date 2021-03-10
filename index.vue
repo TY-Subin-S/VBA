@@ -621,8 +621,8 @@ export default class FDTextBox extends Mixins(FdControlVue) {
     console.log(this.textareaScrollTop)
     this.textareaScrollLeft = textareaRef.scrollLeft
     if (this.textareaScrollLeft === 10 && this.properties.SelectionMargin) {
-      textareaRef.scrollLeft = 0.1
-      this.textareaScrollLeft = 0.1
+      textareaRef.scrollLeft = 0.5
+      this.textareaScrollLeft = 0.5
     }
     console.log('this.textareascrollleft', this.textareaScrollLeft)
   }
