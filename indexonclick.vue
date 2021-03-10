@@ -11,7 +11,6 @@
       data-gramm="false"
       ref="textareaRef"
       :style="cssStyleProperty"
-      @mouseover="updateMouseCursor"
       :tabindex="properties.TabIndex"
       :maxlength="properties.MaxLength !==0 ? properties.MaxLength : ''"
       :disabled="getDisableValue"
@@ -33,7 +32,8 @@
       "
       @keydown="properties.PasswordChar !== '' ? handleDelete($event) : null"
       @blur="handleBlur($event, textareaRef, hideSelectionDiv)"
-      @click="handleClick(hideSelectionDiv), onClickSelection()"
+      @click="handleClick(hideSelectionDiv), onClickSelection($event)"
+      @mouseover="onmouseSelection($event)"
       class="text-box-design"
       :value="
         properties.Value
@@ -360,9 +360,13 @@ export default class FDTextBox extends Mixins(FdControlVue) {
       el.selectionEnd = el.selectionStart = selStart + text.length
     }
   }
+  onmouseSelection (e:MouseEvent) {
+    // console.log('x')
+    // console.log('y', e.offsetY)
+  }
   lastStart:number
   lastEnd: number
-  onClickSelection () {
+  onClickSelection (e:MouseEvent) {
     debugger
     const textarea = this.textareaRef
     if (typeof textarea.selectionStart === 'undefined') {
@@ -373,7 +377,7 @@ export default class FDTextBox extends Mixins(FdControlVue) {
     var startPos = (textarea.value.substring(0, selStart).lastIndexOf('\n') >= 0) ? textarea.value.substring(0, selStart).lastIndexOf('\n') + 1 : 0
     var endPos = (textarea.value.substring(textarea.selectionEnd, textarea.value.length).indexOf('\n') >= 0) ? textarea.selectionEnd + textarea.value.substring(textarea.selectionEnd, textarea.value.length).indexOf('\n') : textarea.value.length
     // eslint-disable-next-line no-useless-escape
-    if (selStart === 0 || textarea.value.substring(selStart - 1, selStart) === '\n') {
+    if ((selStart === 0 || textarea.value.substring(selStart - 1, selStart) === '\n') && e.offsetX < 10) {
       if (startPos === endPos) {
         textarea.setSelectionRange(startPos, endPos + 1)
         this.lastStart = startPos
