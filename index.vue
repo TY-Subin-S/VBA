@@ -317,7 +317,6 @@ export default class FDTextBox extends Mixins(FdControlVue) {
       ...styleObject,
       display: 'none',
       paddingTop: '2px',
-      paddingLeft: this.properties.SelectionMargin ? '10px' : '2px',
       overflow: 'hidden'
     }
   }
