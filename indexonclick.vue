@@ -33,7 +33,6 @@
       @keydown="properties.PasswordChar !== '' ? handleDelete($event) : null"
       @blur="handleBlur($event, textareaRef, hideSelectionDiv)"
       @click="handleClick(hideSelectionDiv), onClickSelection($event)"
-      @mouseover="onmouseSelection($event)"
       class="text-box-design"
       :value="
         properties.Value
@@ -360,10 +359,6 @@ export default class FDTextBox extends Mixins(FdControlVue) {
       el.selectionEnd = el.selectionStart = selStart + text.length
     }
   }
-  onmouseSelection (e:MouseEvent) {
-    // console.log('x')
-    // console.log('y', e.offsetY)
-  }
   lastStart:number
   lastEnd: number
   onClickSelection (e:MouseEvent) {
@@ -372,8 +367,6 @@ export default class FDTextBox extends Mixins(FdControlVue) {
     if (typeof textarea.selectionStart === 'undefined') {
       return false
     }
-    console.log(e.offsetX)
-    console.log(e.offsetY)
     const selStart = textarea.selectionStart
     const selEnd = textarea.selectionEnd
     var startPos = (textarea.value.substring(0, selStart).lastIndexOf('\n') >= 0) ? textarea.value.substring(0, selStart).lastIndexOf('\n') + 1 : 0
