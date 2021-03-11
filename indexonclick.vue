@@ -372,12 +372,14 @@ export default class FDTextBox extends Mixins(FdControlVue) {
     if (typeof textarea.selectionStart === 'undefined') {
       return false
     }
+    console.log(e.offsetX)
+    console.log(e.offsetY)
     const selStart = textarea.selectionStart
     const selEnd = textarea.selectionEnd
     var startPos = (textarea.value.substring(0, selStart).lastIndexOf('\n') >= 0) ? textarea.value.substring(0, selStart).lastIndexOf('\n') + 1 : 0
     var endPos = (textarea.value.substring(textarea.selectionEnd, textarea.value.length).indexOf('\n') >= 0) ? textarea.selectionEnd + textarea.value.substring(textarea.selectionEnd, textarea.value.length).indexOf('\n') : textarea.value.length
     // eslint-disable-next-line no-useless-escape
-    if ((selStart === 0 || textarea.value.substring(selStart - 1, selStart) === '\n') && e.offsetX < 10) {
+    if (e.offsetX < 10) {
       if (startPos === endPos) {
         textarea.setSelectionRange(startPos, endPos + 1)
         this.lastStart = startPos
