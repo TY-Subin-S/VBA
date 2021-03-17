@@ -32,14 +32,14 @@
       "
       @keydown="properties.PasswordChar !== '' ? handleDelete($event) : null"
       @blur="handleBlur($event, textareaRef, hideSelectionDiv)"
-      @click="handleClick(hideSelectionDiv)"
+      @click="handleClick(hideSelectionDiv), onClickSelection($event)"
       class="text-box-design"
       :value="
         properties.Value
           | passwordFilter(properties.PasswordChar, properties.Value)
       "
       @dragstart="dragBehavior"
-      @scroll="getscrollTop(textareaRef, hideSelectionDiv)"
+      spellcheck="false"
     />
     <div
       ref="hideSelectionDiv"
@@ -47,8 +47,8 @@
       :style="divcssStyleProperty"
       :title="properties.ControlTipText"
       class="text-box-design"
-      @scroll="getscrollTop(textareaRef)"
-    >{{
+    >
+      {{
         properties.Value
           | passwordFilter(properties.PasswordChar, properties.Value)
       }}
@@ -69,6 +69,7 @@ import {
 } from 'vue-property-decorator'
 import FdControlVue from '@/api/abstract/FormDesigner/FdControlVue'
 import { DirectiveBinding } from 'vue/types/options'
+import { EventBus } from '@/FormDesigner/event-bus'
 
 @Component({
   name: 'FDTextBox',
@@ -117,9 +118,11 @@ export default class FDTextBox extends Mixins(FdControlVue) {
   @Ref('hideSelectionDiv') readonly hideSelectionDiv!: HTMLDivElement;
   @Ref('autoSizeTextarea') readonly autoSizeTextarea!: HTMLLabelElement;
   @Ref('textareaRef') textareaRef: HTMLTextAreaElement;
+
   $el: HTMLDivElement
   originalText: string = ''
   trimmedText: string = ''
+  fitToSizeWhenMultiLine: boolean = false
   dblclick (e: Event) {
     let newSelectionStart = 0
     const eTarget = e.target as HTMLTextAreaElement
@@ -184,8 +187,8 @@ export default class FDTextBox extends Mixins(FdControlVue) {
       width: `${controlProp.Width}px`,
       height: `${controlProp.Height}px`,
       top: `${controlProp.Top}px`,
+      paddingLeft: controlProp.SelectionMargin === true ? '10px' : '1px',
       borderColor: controlProp.BorderStyle === 1 ? controlProp.BorderColor : '',
-      paddingLeft: controlProp.SelectionMargin ? '10px' : '2px',
       textAlign:
         controlProp.TextAlign === 0
           ? 'left'
@@ -202,10 +205,7 @@ export default class FDTextBox extends Mixins(FdControlVue) {
         controlProp.WordWrap && controlProp.MultiLine ? 'break-word' : 'normal',
       color:
         controlProp.Enabled === true ? controlProp.ForeColor : this.getEnabled,
-      cursor:
-        controlProp.MousePointer !== 0 || controlProp.MouseIcon !== ''
-          ? this.getMouseCursorData
-          : 'default',
+      cursor: this.controlCursor,
       fontFamily: (font.FontStyle! !== '') ? this.setFontStyle : font.FontName!,
       fontSize: `${font.FontSize}px`,
       fontStyle: font.FontItalic || this.isItalic ? 'italic' : '',
@@ -223,30 +223,20 @@ export default class FDTextBox extends Mixins(FdControlVue) {
       display: display,
       overflowX: this.getScrollBarX,
       overflowY: this.getScrollBarY
-      // position: 'relative'
     }
   }
-  /**
-   * @description updates the dataModel textBox object properties when user insert/delete text
-   * inside textBox when passwordChar is set, updates text and values properties of textBox with entered character
-   * @function handlePasswordChar
-   * @param event its of type TextEvent
-   * @event input
-   *
-   */
+
   setWhiteSpace () {
     const controlProp = this.properties
-    // debugger
-    console.log('whitespace')
     if (this.isEditMode) {
       if (controlProp.MultiLine) {
         if (controlProp.WordWrap) {
           return 'break-spaces'
         } else {
-          return 'pre'
+          return 'nowrap'
         }
       } else {
-        return 'pre'
+        return 'nowrap'
       }
     } else {
       if (controlProp.MultiLine) {
@@ -260,7 +250,32 @@ export default class FDTextBox extends Mixins(FdControlVue) {
       }
     }
   }
+  /**
+   * @description updates the dataModel textBox object properties when user insert/delete text
+   * inside textBox when passwordChar is set, updates text and values properties of textBox with entered character
+   * @function handlePasswordChar
+   * @param event its of type TextEvent
+   * @event input
+   *
+   */
   handlePasswordChar (event: TextEvent) {
+    const controlPropData = this.properties
+    if (event.target instanceof HTMLTextAreaElement) {
+      if (!controlPropData.MultiLine) {
+        event.target.value = event.target.value.replace(/(\r\n|\n|\r)/gm, '')
+        for (let i = 0; i < event.target.value.length; i++) {
+          event.target.value = event.target.value.replace(event.target.value[i], this.properties.PasswordChar!)
+        }
+      }
+      this.updateDataModel({
+        propertyName: 'Value',
+        value: (event.target).value
+      })
+      this.updateDataModel({
+        propertyName: 'Text',
+        value: (event.target).value
+      })
+    }
     let newData
     let text = this.properties.Text!
     let selectionDiff =
@@ -300,6 +315,14 @@ export default class FDTextBox extends Mixins(FdControlVue) {
         propertyName: 'CursorEndPosition',
         value: event.target.selectionEnd
       })
+      const controlPropData = this.properties
+      if (controlPropData.AutoTab && controlPropData.MaxLength! > 0) {
+        if (event.target instanceof HTMLTextAreaElement) {
+          if (event.target.value.length === controlPropData.MaxLength) {
+            EventBus.$emit('focusNextControlOnAutoTab')
+          }
+        }
+      }
     } else {
       throw new Error('Expected HTMLTextAreaElement but found different element')
     }
@@ -317,7 +340,7 @@ export default class FDTextBox extends Mixins(FdControlVue) {
       ...styleObject,
       display: 'none',
       paddingTop: '2px',
-      overflow: 'hidden'
+      paddingLeft: '2px'
     }
   }
   /**
@@ -336,6 +359,49 @@ export default class FDTextBox extends Mixins(FdControlVue) {
       el.value = val.slice(0, selStart) + text + val.slice(el.selectionEnd)
       el.selectionEnd = el.selectionStart = selStart + text.length
     }
+  }
+  lastStart:number
+  lastEnd: number
+  onClickSelection (e:MouseEvent) {
+    debugger
+    const textarea = this.textareaRef
+    if (typeof textarea.selectionStart === 'undefined') {
+      return false
+    }
+    let getSelection = document.getSelection()!
+    let canvas = document.createElement('canvas')
+    let context = canvas.getContext('2d')
+    context!.font = this.properties.Font!.FontSize!.toString()
+    let width = context!.measureText(textarea.value.substring(textarea.selectionStart, textarea.value.length)).width
+    console.log(width)
+    const selStart = textarea.selectionStart
+    const selEnd = textarea.selectionEnd
+    const startPos = (textarea.value.substring(0, selStart).lastIndexOf('\n') >= 0) ? textarea.value.substring(0, selStart).lastIndexOf('\n') + 1 : 0
+    const endPos = (textarea.value.substring(selEnd, textarea.value.length).indexOf('\n') >= 0) ? selEnd + textarea.value.substring(selEnd, textarea.value.length).indexOf('\n') : textarea.value.length
+    // eslint-disable-next-line no-useless-escape
+    console.log(startPos)
+    console.log(endPos)
+    if (e.offsetX < 10) {
+      if (startPos === endPos) {
+        textarea.setSelectionRange(startPos, endPos + 1)
+        this.lastStart = startPos
+        this.lastEnd = endPos
+      } else if (textarea.value.substring(startPos, startPos + 1) !== '\n') {
+        textarea.setSelectionRange(selStart, endPos - 1)
+      } else if (textarea.value.substring(startPos, startPos + 1) === '\n') {
+        textarea.setSelectionRange(selStart, selEnd + 1)
+      } else {
+        textarea.setSelectionRange(selStart + 1, endPos)
+      }
+      if (textarea.value.substring(startPos, startPos + 1) !== '\n') {
+        textarea.setSelectionRange(selStart, endPos)
+      }
+      if (this.lastStart === startPos && this.lastEnd + 1 === selEnd) {
+        textarea.setSelectionRange(this.lastStart, this.lastEnd + 1)
+      }
+    }
+
+    return true
   }
   /**
    * @description EnterKeyBehavior - if true when enter is pressed while editing the cursor moves to next line
@@ -387,6 +453,8 @@ export default class FDTextBox extends Mixins(FdControlVue) {
         }
         (event.target).selectionStart = selectionStart + 1;
         (event.target).selectionEnd = (event.target).selectionStart
+        const eTarget = event.target as HTMLTextAreaElement
+        this.updateDataModel({ propertyName: 'Value', value: eTarget.value })
         return false
       } else {
         throw new Error('Expected HTMLTextAreaElement but found different element')
@@ -404,11 +472,21 @@ export default class FDTextBox extends Mixins(FdControlVue) {
    *
    */
   textAndValueUpdate (event: InputEvent) {
-    const propData = this.properties
+    const controlPropData = this.properties
+    if (controlPropData.AutoTab && controlPropData.MaxLength! > 0) {
+      if (event.target instanceof HTMLTextAreaElement) {
+        if (event.target.value.length === controlPropData.MaxLength) {
+          EventBus.$emit('focusNextControlOnAutoTab')
+        }
+      }
+    }
     if (this.properties.AutoSize) {
       this.updateAutoSize()
     }
     if (event.target instanceof HTMLTextAreaElement) {
+      if (!controlPropData.MultiLine) {
+        event.target.value = event.target.value.replace(/(\r\n|\n|\r)/gm, '')
+      }
       this.updateDataModel({
         propertyName: 'Value',
         value: (event.target).value
@@ -468,61 +546,78 @@ export default class FDTextBox extends Mixins(FdControlVue) {
 
   @Watch('properties.MultiLine')
   multiLineValidate () {
-    if (this.properties.AutoSize) {
-      this.updateAutoSize()
-    }
     if (this.textareaRef) {
       this.originalText = this.textareaRef.value
       this.trimmedText = this.originalText.replace(/(\r\n|\n|\r)/gm, '¶')
 
       if (this.properties.MultiLine) {
-        this.trimmedText = this.originalText.replace(/¶/g, '\n')
+        this.trimmedText = this.originalText.replace(/¶/g, '\r\n')
         this.updateDataModel({ propertyName: 'Value', value: this.trimmedText })
       } else {
         this.updateDataModel({ propertyName: 'Value', value: this.trimmedText })
+      }
+    }
+    if (this.properties.AutoSize) {
+      this.fitToSizeWhenMultiLine = true
+      this.updateAutoSize()
+    }
+  }
+
+  @Watch('properties.AutoSize')
+  setAutoHeightWidth () {
+    if (this.properties.AutoSize) {
+      this.updateAutoSize()
+      if (this.properties.MultiLine) {
+        this.fitToSizeWhenMultiLine = true
       }
     }
   }
   /**
    * @override
    */
-  @Watch('properties.AutoSize', { deep: true })
   updateAutoSize () {
     if (this.properties.AutoSize === true) {
-      let spaceCount = 0
       this.$nextTick(() => {
         const textareaRef: HTMLTextAreaElement = this.textareaRef
         // replication of stype attribute to Label tag for autoSize property to work
         let tempLabel: HTMLLabelElement = this.autoSizeTextarea
         tempLabel.style.display = 'inline'
+        tempLabel.innerText = textareaRef.value
         tempLabel.style.fontFamily = textareaRef.style.fontFamily
         tempLabel.style.fontStretch = textareaRef.style.fontStretch
         tempLabel.style.fontStyle = textareaRef.style.fontStyle
         tempLabel.style.fontSize =
             parseInt(textareaRef.style.fontSize) + 'px'
-        tempLabel.style.whiteSpace = textareaRef.style.whiteSpace
-        tempLabel.style.wordBreak = textareaRef.style.wordBreak
-        tempLabel.style.fontWeight = textareaRef.style.fontWeight
-        tempLabel.style.width = (this.textareaRef.value.length + 1) *
-          parseInt(textareaRef.style.fontSize) +
-        'px'
-        tempLabel.style.height = textareaRef.style.height
-        tempLabel.innerText = textareaRef.value
-        for (let i = 0; i < this.textareaRef.value.length; i++) {
-          if (this.textareaRef.value[i] === ' ') {
-            spaceCount = spaceCount + 1
-          }
-        }
-        let addValue = spaceCount * (parseInt(textareaRef.style.fontSize) / 4.5)
         if (this.properties.MultiLine) {
-          this.updateDataModel({
-            propertyName: 'Width',
-            value: tempLabel.offsetWidth
-          })
+          if (!this.properties.WordWrap) {
+            tempLabel.style.whiteSpace = 'pre'
+            tempLabel.style.wordBreak = textareaRef.style.wordBreak
+          } else {
+            tempLabel.style.whiteSpace = 'break-spaces'
+            tempLabel.style.wordBreak = 'break-word'
+          }
+        } else {
+          tempLabel.style.whiteSpace = 'pre'
+          tempLabel.style.wordBreak = textareaRef.style.wordBreak
+        }
+        tempLabel.style.fontWeight = textareaRef.style.fontWeight
+        if (this.properties.MultiLine) {
+          if (this.fitToSizeWhenMultiLine) {
+            this.fitToSizeWhenMultiLine = false
+            this.updateDataModel({
+              propertyName: 'Width',
+              value: tempLabel.offsetWidth + 14
+            })
+          } else {
+            this.updateDataModel({
+              propertyName: 'Width',
+              value: tempLabel.offsetWidth
+            })
+          }
         } else {
           this.updateDataModel({
             propertyName: 'Width',
-            value: tempLabel.offsetWidth + 7 + addValue
+            value: tempLabel.offsetWidth + 14
           })
         }
         if (this.textareaRef.value === ' ' || this.textareaRef.value === '') {
@@ -613,24 +708,11 @@ export default class FDTextBox extends Mixins(FdControlVue) {
    * @event blur
    *
    */
-  textareaScrollTop:number
-  textareaScrollLeft:number
-  getscrollTop (textareaRef: HTMLTextAreaElement) {
-    this.textareaScrollTop = textareaRef.scrollTop
-    console.log(this.textareaScrollTop)
-    this.textareaScrollLeft = textareaRef.scrollLeft
-    if (this.textareaScrollLeft === 10 && this.properties.SelectionMargin) {
-      textareaRef.scrollLeft = 0.5
-      this.textareaScrollLeft = 0.5
-    }
-    console.log('this.textareascrollleft', this.textareaScrollLeft)
-  }
   handleBlur (
     event: TextEvent,
     textareaRef: HTMLTextAreaElement,
     hideSelectionDiv: HTMLDivElement
   ) {
-    debugger
     this.getSelectionStart = this.textareaRef.selectionStart
     this.getSelectionEnd = this.textareaRef.selectionEnd
     if (!this.properties.HideSelection) {
@@ -650,21 +732,6 @@ export default class FDTextBox extends Mixins(FdControlVue) {
         "<span style='background-color:lightblue'>" +
         firstPart.slice(eventTarget.selectionStart + Math.abs(0))
         hideSelectionDiv.innerHTML = text
-        const divScrollTop = hideSelectionDiv.scrollTop
-        const divScrollLeft = hideSelectionDiv.scrollLeft
-        if (this.textareaScrollTop === 0) {
-          hideSelectionDiv.scrollTop = divScrollTop
-        } else {
-          hideSelectionDiv.scrollTop = this.textareaScrollTop
-        }
-
-        if (this.textareaScrollLeft === 0) {
-          hideSelectionDiv.scrollLeft = divScrollLeft
-          console.log(hideSelectionDiv.scrollLeft)
-        } else {
-          hideSelectionDiv.scrollLeft = this.textareaScrollLeft
-          console.log(hideSelectionDiv.scrollLeft)
-        }
       } else {
         throw new Error('Expected HTMLTextAreaElement but found different element')
       }
@@ -752,7 +819,6 @@ export default class FDTextBox extends Mixins(FdControlVue) {
   textBoxClick (event: MouseEvent) {
     if (this.toolBoxSelectControl === 'Select') {
       event.stopPropagation()
-      this.selectedItem(event)
     }
     Vue.nextTick(() => {
       if (this.isEditMode) {
