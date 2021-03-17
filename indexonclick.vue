@@ -39,6 +39,7 @@
           | passwordFilter(properties.PasswordChar, properties.Value)
       "
       @dragstart="dragBehavior"
+      spellcheck="false"
     />
     <div
       ref="hideSelectionDiv"
@@ -367,16 +368,24 @@ export default class FDTextBox extends Mixins(FdControlVue) {
     if (typeof textarea.selectionStart === 'undefined') {
       return false
     }
+    let getSelection = document.getSelection()!
+    let canvas = document.createElement('canvas')
+    let context = canvas.getContext('2d')
+    context!.font = this.properties.Font!.FontSize!.toString()
+    let width = context!.measureText(textarea.value.substring(textarea.selectionStart, textarea.value.length)).width
+    console.log(width)
     const selStart = textarea.selectionStart
     const selEnd = textarea.selectionEnd
-    var startPos = (textarea.value.substring(0, selStart).lastIndexOf('\n') >= 0) ? textarea.value.substring(0, selStart).lastIndexOf('\n') + 1 : 0
-    var endPos = (textarea.value.substring(textarea.selectionEnd, textarea.value.length).indexOf('\n') >= 0) ? textarea.selectionEnd + textarea.value.substring(textarea.selectionEnd, textarea.value.length).indexOf('\n') : textarea.value.length
+    const startPos = (textarea.value.substring(0, selStart).lastIndexOf('\n') >= 0) ? textarea.value.substring(0, selStart).lastIndexOf('\n') + 1 : 0
+    const endPos = (textarea.value.substring(selEnd, textarea.value.length).indexOf('\n') >= 0) ? selEnd + textarea.value.substring(selEnd, textarea.value.length).indexOf('\n') : textarea.value.length
     // eslint-disable-next-line no-useless-escape
+    console.log(startPos)
+    console.log(endPos)
     if (e.offsetX < 10) {
       if (startPos === endPos) {
         textarea.setSelectionRange(startPos, endPos + 1)
         this.lastStart = startPos
-        this.lastEnd = selEnd
+        this.lastEnd = endPos
       } else if (textarea.value.substring(startPos, startPos + 1) !== '\n') {
         textarea.setSelectionRange(selStart, endPos - 1)
       } else if (textarea.value.substring(startPos, startPos + 1) === '\n') {
